@@ -61,11 +61,22 @@ class BaiduSpider(Spider):
     def imgsearch_requests(self, seeds):
         return [scrapy.http.Request("http://image.baidu.com/n/pc_search?queryImageUrl=%s&fm=stuhome&uptype=urlsearch" % (urllib2.quote(s))) for s in seeds] + \
             [scrapy.http.Request("http://image.baidu.com/n/similar?queryImageUrl=%s&pn=28&rn=100&sort=&fr=pc" % (urllib2.quote(s))) for s in seeds]
+
     def start_requests(self):
         seeds = open("/Users/mulisen/work/search/bcrawl/scrapyd/items/baidu/lianjia/46845cc5340b11e5860db8f6b1123a15.jl").readlines()
-        seeds = [img['url'] for img in [json.loads(line) for line in seeds]]
-        # seeds = ["http://www.elongstatic.com/gp2/M00/48/54/rIYBAFNWuh2AMKvgAADWYi3r560716.jpg"]
-        requests = self.imgsearch_requests(seeds)
+        self.log("start_request seed length:%d" % len(seeds))
+        requests = []
+        for seed in seeds:
+            try:
+                j = json.loads(seed)
+                for url in j["image_urls"]:
+                    requests.append(url)
+            except Exception, e:
+                self.log(e.message)
+                pass
+        self.log("start_requests length:%d" % len(requests))
+        # seeds = [img['url'] for img in [json.loads(line) for line in seeds]]
+        requests = self.imgsearch_requests(requests)
 
         # requests = [scrapy.http.Request("http://image.baidu.com/n/pc_search?queryImageUrl=%s&fm=stuhome&uptype=urlsearch" % (urllib2.quote(s))) for s in seeds]
         for req in requests:
