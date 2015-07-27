@@ -58,21 +58,28 @@ class BaiduSpider(Spider):
     name = "baidu"
     allowed_domains = ["baidu.com"]
 
+    def imgsearch_requests(self, seeds):
+        return [scrapy.http.Request("http://image.baidu.com/n/pc_search?queryImageUrl=%s&fm=stuhome&uptype=urlsearch" % (urllib2.quote(s))) for s in seeds] + \
+            [scrapy.http.Request("http://image.baidu.com/n/similar?queryImageUrl=%s&pn=28&rn=100&sort=&fr=pc" % (urllib2.quote(s))) for s in seeds]
     def start_requests(self):
-        seeds = ["http://www.elongstatic.com/gp2/M00/48/54/rIYBAFNWuh2AMKvgAADWYi3r560716.jpg"]
-        requests = [scrapy.http.Request("http://image.baidu.com/n/pc_search?queryImageUrl=%s&fm=stuhome&uptype=urlsearch" % (urllib2.quote(s))) for s in seeds]
+        seeds = open("/Users/mulisen/work/search/bcrawl/scrapyd/items/baidu/lianjia/46845cc5340b11e5860db8f6b1123a15.jl").readlines()
+        seeds = [img['url'] for img in [json.loads(line) for line in seeds]]
+        # seeds = ["http://www.elongstatic.com/gp2/M00/48/54/rIYBAFNWuh2AMKvgAADWYi3r560716.jpg"]
+        requests = self.imgsearch_requests(seeds)
+
+        # requests = [scrapy.http.Request("http://image.baidu.com/n/pc_search?queryImageUrl=%s&fm=stuhome&uptype=urlsearch" % (urllib2.quote(s))) for s in seeds]
         for req in requests:
             yield req
-        requests = [scrapy.http.Request("http://image.baidu.com/n/similar?queryImageUrl=%s&pn=28&rn=100&sort=&fr=pc" % (urllib2.quote(s))) for s in seeds]
-        for req in requests:
-            yield req
+        #requests = [scrapy.http.Request("http://image.baidu.com/n/similar?queryImageUrl=%s&pn=28&rn=100&sort=&fr=pc" % (urllib2.quote(s))) for s in seeds]
+        #for req in requests:
+        #    yield req
 
     def parse(self, response):
         if response.url.startswith("http://image.baidu.com/search/index?"):
             self.log("text search page! %s" % response.url)
             p=re.compile("\"middleURL\":\"([^\"]*)\"")
             image_urls = [ i.group(1) for i in p.finditer(response.body)]
-            yield {"type": "txtsearch", "url": response.url, "image_urls": image_urls}
+            # yield {"type": "txtsearch", "url": response.url, "image_urls": image_urls}
             pass
         elif response.url.startswith("http://image.baidu.com/n/pc_search?"):
             self.log('image search page! %s' % response.url)
@@ -85,6 +92,32 @@ class BaiduSpider(Spider):
             j = json.loads(response.body)
             image_urls = [i["objURL"] for i in j['data']]
             yield {"type":"imgsearch", "image_urls": image_urls}
+
+class LianjiaSpider(CrawlSpider):
+    name="lianjia"
+    allow_domains = ["bj.lianjia.com"]
+    #  start_urls = ["http://bj.lianjia.com/ershoufang/"]
+
+    def start_requests(self):
+        yield scrapy.http.Request("http://bj.lianjia.com/ershoufang/")
+        for i in range(2, 3579):
+            yield scrapy.http.Request("http://bj.lianjia.com/ershoufang/pg%d" % i)
+
+    rules = (
+        # Extract links matching 'category.php' (but not matching 'subsection.php'
+        # and follow links from them (since no callback means follow=True by default).
+        Rule(LinkExtractor(allow=('/ershoufang/pg.*', )), follow=True),
+        Rule(LinkExtractor(allow=('/ershoufang/BJ.*\.html', )), callback='parse_house'),
+    )
+
+    def parse_house(self, response):
+        self.log('Hi, this is an house page! %s' % response.url)
+        # image_urls=response.css("#semiContent p a img::attr(obj-url)").extract()
+        # yield {"image_urls":image_urls}
+        image_urls = [url.replace("600x450","800x600") for url in response.css('li.actShowImg img::attr("data-url")').extract()]
+        yield {"image_urls": image_urls}
+
+
 
 '''
 class BaiduSpider(CrawlSpider):
