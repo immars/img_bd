@@ -61,11 +61,42 @@ class BaiduSpider(Spider):
     def imgsearch_requests(self, seeds):
         return [scrapy.http.Request("http://image.baidu.com/n/pc_search?queryImageUrl=%s&fm=stuhome&uptype=urlsearch" % (urllib2.quote(s))) for s in seeds] + \
             [scrapy.http.Request("http://image.baidu.com/n/similar?queryImageUrl=%s&pn=28&rn=100&sort=&fr=pc" % (urllib2.quote(s))) for s in seeds]
+
+    def parse_url_jsons(self, path):
+        seeds = open(path).readlines()
+        self.log("start_request seed length:%d" % len(seeds))
+        requests = []
+        for seed in seeds:
+            try:
+                j = json.loads(seed)
+                for url in j["image_urls"]:
+                    requests.append(url)
+            except Exception, e:
+                self.log(e.message)
+                pass
+        return requests
+
+    def parse_path_jsons(self, path):
+        seeds = open(path).readlines()
+        self.log("start_request seed length:%d" % len(seeds))
+        requests = []
+        for seed in seeds:
+            try:
+                j = json.loads(seed)
+                for i in j["images"]:
+                    requests.append(i['path'])
+            except Exception, e:
+                self.log(e.message)
+                pass
+        return requests
+
+
     def start_requests(self):
-        seeds = open("/Users/mulisen/work/search/bcrawl/scrapyd/items/baidu/lianjia/46845cc5340b11e5860db8f6b1123a15.jl").readlines()
-        seeds = [img['url'] for img in [json.loads(line) for line in seeds]]
-        # seeds = ["http://www.elongstatic.com/gp2/M00/48/54/rIYBAFNWuh2AMKvgAADWYi3r560716.jpg"]
-        requests = self.imgsearch_requests(seeds)
+        requests = self.parse_url_jsons("/home/disk1/mulisen/crawler/bcrawl/scrapyd/items/baidu/lianjia/46845cc5340b11e5860db8f6b1123a15.jl")
+        self.log("start_requests length:%d" % len(requests))
+
+        # seeds = [img['url'] for img in [json.loads(line) for line in seeds]]
+        requests = self.imgsearch_requests(requests)
 
         # requests = [scrapy.http.Request("http://image.baidu.com/n/pc_search?queryImageUrl=%s&fm=stuhome&uptype=urlsearch" % (urllib2.quote(s))) for s in seeds]
         for req in requests:
@@ -117,6 +148,54 @@ class LianjiaSpider(CrawlSpider):
         image_urls = [url.replace("600x450","800x600") for url in response.css('li.actShowImg img::attr("data-url")').extract()]
         yield {"image_urls": image_urls}
 
+
+"""
+    to8to.com
+"""
+class To8ToSpider(Spider):
+    name="to8to"
+    allow_domains = ["to8to.com"]
+    #  start_urls = ["http://bj.lianjia.com/ershoufang/"]
+
+    def start_requests(self):
+        yield scrapy.http.Request("http://xiaoguotu.to8to.com/list-h6s9i0")
+        for i in range(2, 53):
+            yield scrapy.http.Request("http://xiaoguotu.to8to.com/list-h6s9i0p%d" % i)
+    """
+    rules = (
+        # Extract links matching 'category.php' (but not matching 'subsection.php'
+        # and follow links from them (since no callback means follow=True by default).
+        Rule(LinkExtractor(allow=('/list-h6s9i0p*', )), follow=True, callback='parse_index'),
+        Rule(LinkExtractor(allow=('/p.*\.html', )), callback='parse_house'),
+        Rule(LinkExtractor(allow=('/getxgtjson.*', )), callback='parse_json'),
+    )
+    """
+
+    def parse_index(self, response):
+        hrefs = [h[2:-5] for h in response.css("div.item a::attr(href)").extract()]
+        return [scrapy.http.Request("http://xiaoguotu.to8to.com/getxgtjson.php?a2=1&a12=&a11=%s&a1=0&a17=1" % item_id) for item_id in hrefs]
+
+    def parse_house(self, response):
+        self.log('Hi, this is an house page! %s' % response.url)
+        # image_urls=response.css("#semiContent p a img::attr(obj-url)").extract()
+        # yield {"image_urls":image_urls}
+        # image_urls = [url.replace("600x450","800x600") for url in response.css('li.actShowImg img::attr("data-url")').extract()]
+        # yield {"image_urls": image_urls}
+
+    def parse_json(self, response):
+        data = json.loads(response.body)
+        paths = [ d['l']['s'] for d in data['dataImg']]
+        bigpaths = ['http://pic2.to8to.com/case/' + p[:-10] + 'l1' + p[-8:-4] + '_sp' + p[-4:] for p in paths]
+        self.log("image got:%d" %len(bigpaths))
+        return [{"image_urls": bigpaths}]
+
+    def parse(self, response):
+        if response.url.startswith("http://xiaoguotu.to8to.com/list-h6s9i0"):
+            for req in self.parse_index(response):
+                yield req
+        elif response.url.startswith("http://xiaoguotu.to8to.com/getxgtjson"):
+            for req in self.parse_json(response):
+                yield req
 
 
 '''
