@@ -94,7 +94,6 @@ class BaiduSpider(Spider):
     def start_requests(self):
         requests = self.parse_url_jsons("/home/disk1/mulisen/crawler/bcrawl/scrapyd/items/baidu/lianjia/46845cc5340b11e5860db8f6b1123a15.jl")
         self.log("start_requests length:%d" % len(requests))
-
         # seeds = [img['url'] for img in [json.loads(line) for line in seeds]]
         requests = self.imgsearch_requests(requests)
 
